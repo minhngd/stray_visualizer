@@ -98,4 +98,6 @@ def main():
 if __name__ == "__main__":
     main()
 
-# python StrayVisualizer/stray_visualize.py --frames --trajectory --point-clouds ./6eb0146939
+# python 3d_lidar_viz_stray/stray_visualize.py --mesh-filename ./1.ply --frames --integrate --point-clouds ./81fcfc38e3
+
+# python 3d_lidar_viz_stray/stray_visualize.py --mesh-filename ./1.ply --integrate --point-clouds ./81fcfc38e3

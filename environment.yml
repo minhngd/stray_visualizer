@@ -1,0 +1,28 @@
+# 1. remove environment: 
+# mamba remove --name py39 --all
+
+# 2. create environment: 
+# mamba env create -f 3d_lidar_viz_stray/environment.yml
+
+# 3. activate environment: 
+# conda activate py39
+
+# 4. update environment: 
+# mamba env update --file environment.yml
+
+name: py39
+
+channels:
+  - defaults
+  - conda-forge
+
+dependencies:
+  - python=3.9
+  - pip=21.0.1
+  - numpy
+  - pillow
+  - scipy
+  - scikit-video
+  - pip:
+    - open3d
+    - opencv-python
