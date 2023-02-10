@@ -9,8 +9,10 @@ from stray_visualize import DEPTH_WIDTH, DEPTH_HEIGHT, _resize_camera_matrix
 
 FRAME_WIDTH = 1920
 FRAME_HEIGHT = 1440
-OUT_WIDTH = 640
-OUT_HEIGHT = 480
+# OUT_WIDTH = 640
+# OUT_HEIGHT = 480
+OUT_WIDTH = 256
+OUT_HEIGHT = 192
 
 def read_args():
     parser = argparse.ArgumentParser()

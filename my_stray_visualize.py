@@ -57,7 +57,15 @@ def read_data(flags):
     depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
-    return { 'poses': poses, 'intrinsics': intrinsics, 'depth_frames': depth_frames}
+
+    rgb_dir = os.path.join(flags.path, 'rgb')
+    rgb_frames = [os.path.join(rgb_dir, p) for p in sorted(os.listdir(rgb_dir))]
+    rgb_frames = [f for f in rgb_frames if '.npy' in f or '.jpeg' in f]
+    print("len: ", len(poses), len(depth_frames), len(rgb_frames))
+    print("intrinsic: ", intrinsics)
+    return { 'poses': poses, 'intrinsics': intrinsics, 'depth_frames': depth_frames, 'rgb_frames': rgb_frames }
+    # print("intrinsic: ", intrinsics)
+    # return { 'poses': poses, 'intrinsics': intrinsics, 'depth_frames': depth_frames}
 
 def load_depth(path, confidence=None, filter_level=0):
     if path[-4:] == '.npy':
@@ -133,24 +141,42 @@ def point_clouds(flags, data):
     meshes = []
     rgb_path = os.path.join(flags.path, 'rgb.mp4')
     video = skvideo.io.vreader(rgb_path)
-    for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
+    # for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
+    #     if i % flags.every != 0:
+    #         continue
+    #     print(f"Point cloud {i}", end="\r")
+    #     T_CW = np.linalg.inv(T_WC)
+    #     print("T_CW: ", T_WC, " \n", T_CW)
+    #     confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{i:06}.png'))
+    #     depth_path = data['depth_frames'][i]
+    #     depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
+    #     print("rgb: ", type(rgb), rgb.shape)
+    #     rgb = Image.fromarray(rgb)
+    #     rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
+    #     rgb = np.array(rgb)
+    #     print("rgb: ", type(rgb), rgb.shape)
+    #     rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+    #         o3d.geometry.Image(rgb), depth,
+    #         depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
+    #     pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW)
+    for i, (T_WC) in enumerate(zip(data['poses'])):
         if i % flags.every != 0:
             continue
         print(f"Point cloud {i}", end="\r")
         T_CW = np.linalg.inv(T_WC)
-        print("T_CW: ", T_WC, " \n", T_CW)
-        confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{i:06}.png'))
+        print("T_CW: ", T_WC[0], " \n", T_CW[0])
+        confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{(i+631):06}.png'))
         depth_path = data['depth_frames'][i]
+        rgb_path = data['rgb_frames'][i]
         depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
-        print("rgb: ", type(rgb), rgb.shape)
-        rgb = Image.fromarray(rgb)
-        rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
-        rgb = np.array(rgb)
-        print("rgb: ", type(rgb), rgb.shape)
+        rgb = load_rgb(rgb_path)
+        # rgb = Image.fromarray(rgb)
+        # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
+        # rgb = np.array(rgb)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-        pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW)
+        pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW[0])
     return [pc]
 
 def integrate(flags, data):
@@ -170,28 +196,42 @@ def integrate(flags, data):
 
     rgb_path = os.path.join(flags.path, 'rgb.mp4')
     video = skvideo.io.vreader(rgb_path)
-    for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
+    # for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
+    #     print(f"Integrating frame {i:06}", end='\r')
+    #     depth_path = data['depth_frames'][i]
+    #     depth = load_depth(depth_path)
+    #     rgb = Image.fromarray(rgb)
+    #     rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
+    #     rgb = np.array(rgb)
+    #     rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+    #         o3d.geometry.Image(rgb), depth,
+    #         depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
+
+    #     volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC))
+    for i, (T_WC) in enumerate(zip(data['poses'])):
         print(f"Integrating frame {i:06}", end='\r')
         depth_path = data['depth_frames'][i]
+        rgb_path = data['rgb_frames'][i]
         depth = load_depth(depth_path)
-        rgb = Image.fromarray(rgb)
-        rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
-        rgb = np.array(rgb)
+        # rgb = Image.fromarray(rgb)
+        # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
+        # rgb = np.array(rgb)
+        rgb = load_rgb(rgb_path)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
 
-        volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC))
+        volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC[0]))
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()
     return mesh
 
 
 def validate(flags):
-    if not os.path.exists(os.path.join(flags.path, 'rgb.mp4')):
-        absolute_path = os.path.abspath(flags.path)
-        print(f"The directory {absolute_path} does not appear to be a directory created by the Stray Scanner app.")
-        return False
+    # if not os.path.exists(os.path.join(flags.path, 'rgb.mp4')):
+    #     absolute_path = os.path.abspath(flags.path)
+    #     print(f"The directory {absolute_path} does not appear to be a directory created by the Stray Scanner app.")
+    #     return False
     return True
 
 def main():
