@@ -42,9 +42,13 @@ def _resize_camera_matrix(camera_matrix, scale_x, scale_y):
         [0., 0., 1.0]])
 
 def read_data(flags):
-    intrinsics = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
+    # intrinsics = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
     odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=1)
+    extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsic.csv'), delimiter=',',skiprows=0)
+    intrinsicscsv = np.loadtxt(os.path.join(flags.path, "intrinsic.csv"), delimiter=',', skiprows=0)
     poses = []
+    extrinsics = []
+    intrinsics = []
 
     for line in odometry:
         # timestamp, frame, x, y, z, qx, qy, qz, qw
@@ -54,6 +58,15 @@ def read_data(flags):
         T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
         T_WC[:3, 3] = position
         poses.append(T_WC)
+    for line in extrinsiccsv:
+        # x,y,z,r00,r01,r02,r10,r11,r12,r20,r21,r22
+        ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
+        extrinsics.append(ex_m)
+    
+    for line in intrinsicscsv:
+        in_m = np.array([line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8]]).reshape((3,3))
+        intrinsics.append(in_m)
+
     depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
@@ -61,9 +74,9 @@ def read_data(flags):
     rgb_dir = os.path.join(flags.path, 'rgb')
     rgb_frames = [os.path.join(rgb_dir, p) for p in sorted(os.listdir(rgb_dir))]
     rgb_frames = [f for f in rgb_frames if '.npy' in f or '.jpeg' in f]
-    print("len: ", len(poses), len(depth_frames), len(rgb_frames))
+    print("len: ", len(poses), len(depth_frames), len(rgb_frames), len(extrinsics), len(intrinsics))
     print("intrinsic: ", intrinsics)
-    return { 'poses': poses, 'intrinsics': intrinsics, 'depth_frames': depth_frames, 'rgb_frames': rgb_frames }
+    return { 'poses': poses, 'depth_frames': depth_frames, 'rgb_frames': rgb_frames, 'extrinsics': extrinsics, 'intrinsics': intrinsics }
     # print("intrinsic: ", intrinsics)
     # return { 'poses': poses, 'intrinsics': intrinsics, 'depth_frames': depth_frames}
 
@@ -136,47 +149,27 @@ def point_clouds(flags, data):
     returns: [open3d.geometry.PointCloud]
     """
     pcs = []
-    intrinsics = get_intrinsics(data['intrinsics'])
+    # intrinsics = get_intrinsics(data['intrinsics'])
     pc = o3d.geometry.PointCloud()
     meshes = []
-    rgb_path = os.path.join(flags.path, 'rgb.mp4')
-    video = skvideo.io.vreader(rgb_path)
-    # for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
-    #     if i % flags.every != 0:
-    #         continue
-    #     print(f"Point cloud {i}", end="\r")
-    #     T_CW = np.linalg.inv(T_WC)
-    #     print("T_CW: ", T_WC, " \n", T_CW)
-    #     confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{i:06}.png'))
-    #     depth_path = data['depth_frames'][i]
-    #     depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
-    #     print("rgb: ", type(rgb), rgb.shape)
-    #     rgb = Image.fromarray(rgb)
-    #     rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
-    #     rgb = np.array(rgb)
-    #     print("rgb: ", type(rgb), rgb.shape)
-    #     rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-    #         o3d.geometry.Image(rgb), depth,
-    #         depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-    #     pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW)
     for i, (T_WC) in enumerate(zip(data['poses'])):
+        T_CW = np.linalg.inv(T_WC)
+        # print(data['extrinsics'][i])
+        # print("T_CW: ", i, "\n", T_CW[0])
         if i % flags.every != 0:
             continue
         print(f"Point cloud {i}", end="\r")
-        T_CW = np.linalg.inv(T_WC)
-        print("T_CW: ", T_WC[0], " \n", T_CW[0])
-        confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{(i+631):06}.png'))
+        # T_CW = np.linalg.inv(T_WC)
+        
+        confidence = load_confidence(os.path.join(flags.path, 'confidence', f'{(i+5):06}.png'))
         depth_path = data['depth_frames'][i]
         rgb_path = data['rgb_frames'][i]
         depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
         rgb = load_rgb(rgb_path)
-        # rgb = Image.fromarray(rgb)
-        # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
-        # rgb = np.array(rgb)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-        pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW[0])
+        pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, get_intrinsics(data['intrinsics'][i]), extrinsic=data['extrinsics'][i])
     return [pc]
 
 def integrate(flags, data):
@@ -192,22 +185,10 @@ def integrate(flags, data):
             sdf_trunc=0.05,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
 
-    intrinsics = get_intrinsics(data['intrinsics'])
+    # intrinsics = get_intrinsics(data['intrinsics'])
 
     rgb_path = os.path.join(flags.path, 'rgb.mp4')
     video = skvideo.io.vreader(rgb_path)
-    # for i, (T_WC, rgb) in enumerate(zip(data['poses'], video)):
-    #     print(f"Integrating frame {i:06}", end='\r')
-    #     depth_path = data['depth_frames'][i]
-    #     depth = load_depth(depth_path)
-    #     rgb = Image.fromarray(rgb)
-    #     rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
-    #     rgb = np.array(rgb)
-    #     rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-    #         o3d.geometry.Image(rgb), depth,
-    #         depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-
-    #     volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC))
     for i, (T_WC) in enumerate(zip(data['poses'])):
         print(f"Integrating frame {i:06}", end='\r')
         depth_path = data['depth_frames'][i]
@@ -221,7 +202,7 @@ def integrate(flags, data):
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
 
-        volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC[0]))
+        volume.integrate(rgbd, get_intrinsics(data['intrinsics'][i]), np.linalg.inv(T_WC[0]))
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()
     return mesh
