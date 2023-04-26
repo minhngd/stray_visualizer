@@ -46,8 +46,8 @@ def load_depth_image(path):
         img.save(os.path.join(depth_org , f'{(i):06}.png'))    
         img_rescale.save(os.path.join(depth_scale , f'{(i):06}.png'))   
 
-src_dir = "/Users/minhnd/Documents/test/temp/depthcloud/sam7/"
-dst_dir = "/Users/minhnd/Documents/test/temp/depthcloud/sam7/"
+src_dir = "/Users/minhnd/Documents/test/temp/lidar/sam9/"
+dst_dir = "/Users/minhnd/Documents/test/temp/lidar/sam9/"
 
 load_depth_image(src_dir)
 # write_extrinsic(src_dir + "/extrinsics.csv", dst_dir)

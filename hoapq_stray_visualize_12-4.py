@@ -1,10 +1,15 @@
 import os
 import open3d as o3d
 import numpy as np
-from scipy.spatial.transform import Rotation
+from scipy.spatial.transform import Rotation as R
 from argparse import ArgumentParser
 from PIL import Image
 import skvideo.io
+# import simd
+# from scipy.spatial.transform import rotation
+import csv
+file  = open('odometry_optimized.csv', mode='w')
+   
 
 description = """
 This script visualizes datasets collected using the Stray Scanner app.
@@ -17,6 +22,12 @@ Basic usage: python stray_visualize.py <path-to-dataset-folder>
 DEPTH_WIDTH = 256
 DEPTH_HEIGHT = 192
 MAX_DEPTH = 5.0
+
+# Pose graph optimization
+voxel_size = 0.02
+pcds_down = []
+max_correspondence_distance_coarse = voxel_size * 15
+max_correspondence_distance_fine = voxel_size * 1.5
 
 def read_args():
     parser = ArgumentParser(description=description, usage=usage)
@@ -42,9 +53,8 @@ def _resize_camera_matrix(camera_matrix, scale_x, scale_y):
         [0., 0., 1.0]])
 
 def read_data(flags):
-    # intrinsics1 = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
-    # odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
-    # odometry_optimized = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
+    # intrinsics = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
+    odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=1)
     # odometry_matrix = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=' ', skiprows=0)
     extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsics.csv'), delimiter=' ',skiprows=0)
     intrinsicscsv = np.loadtxt(os.path.join(flags.path, "intrinsics.csv"), delimiter=',', skiprows=0)
@@ -53,27 +63,16 @@ def read_data(flags):
     extrinsics = []
     intrinsics = []
 
-    # for line in odometry:
-    #     # timestamp, frame, x, y, z, qx, qy, qz, qw
-    #     position = line[2:5]
-    #     quaternion = line[5:]
-    #     T_WC = np.eye(4)
-    #     T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
-    #     T_WC[:3, 3] = position
-    #     poses.append(T_WC)
-    #     T_CW = np.linalg.inv(T_WC)
-    #     tem_poses.append(T_CW)
-
-    # for line in odometry_optimized:
-    #     # timestamp, frame, x, y, z, qx, qy, qz, qw
-    #     position = line[0:3]
-    #     quaternion = line[3:]
-    #     T_WC = np.eye(4)
-    #     T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
-    #     T_WC[:3, 3] = position
-    #     poses.append(T_WC)
-    #     # T_CW = np.linalg.inv(T_WC)
-    #     tem_poses.append(T_WC)
+    for line in odometry:
+        # timestamp, frame, x, y, z, qx, qy, qz, qw
+        position = line[2:5]
+        quaternion = line[5:]
+        T_WC = np.eye(4)
+        T_WC[:3, :3] = R.from_quat(quaternion).as_matrix()
+        T_WC[:3, 3] = position
+        poses.append(T_WC)
+        T_CW = np.linalg.inv(T_WC)
+        tem_poses.append(T_CW)
 
     # for line in odometry_matrix:
     #     # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
@@ -136,14 +135,6 @@ def load_rgb(path):
 def load_confidence(path):
     return np.array(Image.open(path))
 
-# def get_intrinsics(intrinsics):
-#     """
-#     Scales the intrinsics matrix to be of the appropriate scale for the depth maps.
-#     """
-#     intrinsics_scaled = _resize_camera_matrix(intrinsics, DEPTH_WIDTH / 1920, DEPTH_HEIGHT / 1440)
-#     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
-#         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
-
 def get_intrinsics(intrinsics):
     """
     Scales the intrinsics matrix to be of the appropriate scale for the depth maps.
@@ -151,6 +142,13 @@ def get_intrinsics(intrinsics):
     intrinsics_scaled = _resize_camera_matrix(intrinsics, DEPTH_WIDTH / 1920, DEPTH_HEIGHT / 1440)
     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
+# def get_intrinsics(intrinsics):
+#     """
+#     Scales the intrinsics matrix to be of the appropriate scale for the depth maps.
+#     """
+#     intrinsics_scaled = _resize_camera_matrix(intrinsics, 1, 1)
+#     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
+#         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
 
 def trajectory(flags, data):
     """
@@ -197,13 +195,9 @@ def point_clouds(flags, data):
     # intrinsics = get_intrinsics(data['intrinsics'])
     pc = o3d.geometry.PointCloud()
     meshes = []
-    # fi = open("/Users/minhnd/Documents/test/temp/depthcloud/sam3d/odometry.csv", "w+")
-    for i, (T_WC) in enumerate(zip(data['extrinsics'])):
+    for i, (T_WC) in enumerate(zip(data['poses'])):
         if i < 10000:
             T_CW = np.linalg.inv(T_WC[0])
-            # od = Rotation.from_matrix(T_CW[:3, :3]).as_quat()
-            # x = str(T_CW[0][3]) + "," + str(T_CW[1][3]) + "," + str(T_CW[2][3]) + "," + ','.join([str(x) for x in od]) +  "\n"
-            # fi.write(x)
             # print(data['extrinsics'][i])
             # print("T_CW: ", i, "\n", data['extrinsics'][i], "\n", T_WC, "\n", T_CW[0])
             if i % flags.every != 0:
@@ -223,9 +217,43 @@ def point_clouds(flags, data):
             rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                 o3d.geometry.Image(rgb), depth,
                 depth_scale=1, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-            pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, get_intrinsics(data['intrinsics'][i]), extrinsic = T_CW)
-    return [pc]
+            pc = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, get_intrinsics(data['intrinsics'][0]), extrinsic=T_CW)
+            pcs.append(pc)
+    return pcs
 
+# def integrate(flags, data):
+#     """
+#     Integrates collected RGB-D maps using the Open3D integration pipeline.
+
+#     flags: command line arguments
+#     data: dict with keys ['intrinsics', 'poses']
+#     Returns: open3d.geometry.TriangleMesh
+#     """
+#     volume = o3d.pipelines.integration.ScalableTSDFVolume(
+#             voxel_length=flags.voxel_size,
+#             sdf_trunc=0.05,
+#             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
+
+#     # intrinsics = get_intrinsics(data['intrinsics'])
+#     for i, (T_WC) in enumerate(zip(data['poses'])):
+#         print(f"Integrating frame {i:06}", end='\r')
+#         depth_path = data['depth_frames'][i]
+#         rgb_path = data['rgb_frames'][i]
+#         depth = load_depth(depth_path)
+#         # rgb = Image.fromarray(rgb)
+#         # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
+#         # rgb = np.array(rgb)
+#         # rgb = load_rgb(rgb_path)
+#         # depth = load_csv_depth(depth_path)
+#         rgb = load_rgb(rgb_path)
+#         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+#             o3d.geometry.Image(rgb), depth,
+#             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
+
+#         volume.integrate(rgbd, get_intrinsics(data['intrinsics'][i]), np.linalg.inv(T_WC[0]))
+#     mesh = volume.extract_triangle_mesh()
+#     mesh.compute_vertex_normals()
+#     return mesh
 def integrate(flags, data):
     """
     Integrates collected RGB-D maps using the Open3D integration pipeline.
@@ -239,7 +267,7 @@ def integrate(flags, data):
             sdf_trunc=0.05,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
 
-    intrinsics = get_intrinsics(data['intrinsics1'])
+    # intrinsics = get_intrinsics(data['intrinsics'])
 
     # rgb_path = os.path.join(flags.path, 'rgb.mp4')
     # video = skvideo.io.vreader(rgb_path)
@@ -251,19 +279,16 @@ def integrate(flags, data):
         # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
         # rgb = np.array(rgb)
         depth_path = data['depth_frames'][i]
-        
-        # print("rgb: ", type(rgb), rgb.shape, rgb[0][0], np.amax(rgb))
-        
-
         rgb_path = data['rgb_frames'][i]
-        
+        print("Flags: ", flags)
         depth = load_depth(depth_path)
+        # depth = load_csv_depth(depth_path, confidence, filter_level=flags.confidence)
         rgb = load_rgb(rgb_path)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
 
-        volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC[0]))
+        volume.integrate(rgbd, get_intrinsics(data['intrinsics'][i]), np.linalg.inv(T_WC[0]))
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()
     return mesh
@@ -275,6 +300,54 @@ def validate(flags):
     #     print(f"The directory {absolute_path} does not appear to be a directory created by the Stray Scanner app.")
     #     return False
     return True
+
+def pairwise_registration(source, target):
+    print("Apply point-to-plane ICP")
+    icp_coarse = o3d.pipelines.registration.registration_icp(
+        source, target, max_correspondence_distance_coarse, np.identity(4),
+        o3d.pipelines.registration.TransformationEstimationPointToPlane())
+    icp_fine = o3d.pipelines.registration.registration_icp(
+        source, target, max_correspondence_distance_fine,
+        icp_coarse.transformation,
+        o3d.pipelines.registration.TransformationEstimationPointToPlane())
+    transformation_icp = icp_fine.transformation
+    information_icp = o3d.pipelines.registration.get_information_matrix_from_point_clouds(
+        source, target, max_correspondence_distance_fine,
+        icp_fine.transformation)
+    return transformation_icp, information_icp
+
+
+def full_registration(pcds, max_correspondence_distance_coarse,
+                      max_correspondence_distance_fine):
+    pose_graph = o3d.pipelines.registration.PoseGraph()
+    odometry = np.identity(4)
+    pose_graph.nodes.append(o3d.pipelines.registration.PoseGraphNode(odometry))
+    n_pcds = len(pcds)
+    print(n_pcds)
+    for source_id in range(n_pcds):
+        for target_id in range(source_id + 1, n_pcds):
+            transformation_icp, information_icp = pairwise_registration(
+                pcds[source_id], pcds[target_id])
+            print("Build o3d.pipelines.registration.PoseGraph")
+            if target_id == source_id + 1:  # odometry case
+                odometry = np.dot(transformation_icp, odometry)
+                pose_graph.nodes.append(
+                    o3d.pipelines.registration.PoseGraphNode(
+                        np.linalg.inv(odometry)))
+                pose_graph.edges.append(
+                    o3d.pipelines.registration.PoseGraphEdge(source_id,
+                                                             target_id,
+                                                             transformation_icp,
+                                                             information_icp,
+                                                             uncertain=False))
+            else:  # loop closure case
+                pose_graph.edges.append(
+                    o3d.pipelines.registration.PoseGraphEdge(source_id,
+                                                             target_id,
+                                                             transformation_icp,
+                                                             information_icp,
+                                                             uncertain=True))
+    return pose_graph
 
 def main():
     flags = read_args()
@@ -294,7 +367,56 @@ def main():
     if flags.frames:
         geometries += show_frames(flags, data)
     if flags.point_clouds:
-        geometries += point_clouds(flags, data)
+        pcds = point_clouds(flags, data)
+        for pcd in pcds:
+            pcd_down = pcd.voxel_down_sample(voxel_size=voxel_size)
+            pcd_down.estimate_normals()
+            pcds_down.append(pcd_down)
+
+        print("Full registration ...")
+        with o3d.utility.VerbosityContextManager(
+                o3d.utility.VerbosityLevel.Debug) as cm:
+            pose_graph = full_registration(pcds_down,
+                                        max_correspondence_distance_coarse,
+                                        max_correspondence_distance_fine)
+            
+        print("Optimizing PoseGraph ...")
+        option = o3d.pipelines.registration.GlobalOptimizationOption(
+            max_correspondence_distance=max_correspondence_distance_fine,
+            edge_prune_threshold=0.25,
+            reference_node=0)
+        with o3d.utility.VerbosityContextManager(
+                o3d.utility.VerbosityLevel.Debug) as cm:
+            o3d.pipelines.registration.global_optimization(
+                pose_graph,
+                o3d.pipelines.registration.GlobalOptimizationLevenbergMarquardt(),
+                o3d.pipelines.registration.GlobalOptimizationConvergenceCriteria(),
+                option)
+            
+        print("Transform points and display : ", len(pcds_down))
+        for point_id in range(len(pcds_down)):
+            print(pose_graph.nodes[point_id].pose)
+            pcds_down[point_id].transform(pose_graph.nodes[point_id].pose)
+            print("Pose new", pose_graph.nodes[point_id].pose)
+            extrinsic = pose_graph.nodes[point_id].pose
+            current_transform = np.linalg.inv(extrinsic)
+            
+            trans = current_transform
+            roat = R.from_matrix([
+                            [trans[0][0], trans[0][1], trans[0][2]],
+                            [trans[1][0], trans[1][1], trans[1][2]],
+                            [trans[2][0], trans[2][1], trans[2][2]]]).as_quat()
+            qx = roat[0]
+            qy = roat[1]
+            qz = roat[2]
+            qw = roat[3]
+            x = trans[0][3]
+            y = trans[1][3]
+            z = trans[2][3]
+            # print("posdfsfsfs: ", )
+            odometry =   str(x) + ", " + str(y) + ", " + str(z) + ", " + str(qx) + ", " + str(qy) + ", " + str(qz) + ", "  + str(qw) + "\n" 
+            file.write(odometry)
+        geometries += pcds_down
     if flags.integrate:
         mesh = integrate(flags, data)
         if flags.mesh_filename is not None:

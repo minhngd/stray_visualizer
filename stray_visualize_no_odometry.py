@@ -16,7 +16,7 @@ Basic usage: python stray_visualize.py <path-to-dataset-folder>
 
 DEPTH_WIDTH = 256
 DEPTH_HEIGHT = 192
-MAX_DEPTH = 5.0
+MAX_DEPTH = 3.0
 
 def read_args():
     parser = ArgumentParser(description=description, usage=usage)
@@ -26,7 +26,7 @@ def read_args():
     parser.add_argument('--point-clouds', '-p', action='store_true', help="Show concatenated point clouds.")
     parser.add_argument('--integrate', '-i', action='store_true', help="Integrate point clouds using the Open3D RGB-D integration pipeline, and visualize it.")
     parser.add_argument('--mesh-filename', type=str, help='Mesh generated from point cloud integration will be stored in this file. open3d.io.write_triangle_mesh will be used.', default=None)
-    parser.add_argument('--every', type=int, default=1, help="Show only every nth point cloud and coordinate frames. Only used for point cloud and odometry visualization.")
+    parser.add_argument('--every', type=int, default=10, help="Show only every nth point cloud and coordinate frames. Only used for point cloud and odometry visualization.")
     parser.add_argument('--voxel-size', type=float, default=0.5, help="Voxel size in meters to use in RGB-D integration.")
     parser.add_argument('--confidence', '-c', type=int, default=1,
             help="Keep only depth estimates with confidence equal or higher to the given value. There are three different levels: 0, 1 and 2. Higher is more confident.")
@@ -42,11 +42,10 @@ def _resize_camera_matrix(camera_matrix, scale_x, scale_y):
         [0., 0., 1.0]])
 
 def read_data(flags):
-    # intrinsics1 = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
-    # odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
-    # odometry_optimized = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
+    # intrinsics = np.loadtxt(os.path.join(flags.path, 'camera_matrix.csv'), delimiter=',')
+    # odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=' ', skiprows=0)
     # odometry_matrix = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=' ', skiprows=0)
-    extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsics.csv'), delimiter=' ',skiprows=0)
+    extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsics.csv'), delimiter=',',skiprows=0)
     intrinsicscsv = np.loadtxt(os.path.join(flags.path, "intrinsics.csv"), delimiter=',', skiprows=0)
     poses = []
     tem_poses = []
@@ -64,31 +63,20 @@ def read_data(flags):
     #     T_CW = np.linalg.inv(T_WC)
     #     tem_poses.append(T_CW)
 
-    # for line in odometry_optimized:
-    #     # timestamp, frame, x, y, z, qx, qy, qz, qw
-    #     position = line[0:3]
-    #     quaternion = line[3:]
-    #     T_WC = np.eye(4)
-    #     T_WC[:3, :3] = Rotation.from_quat(quaternion).as_matrix()
-    #     T_WC[:3, 3] = position
-    #     poses.append(T_WC)
-    #     # T_CW = np.linalg.inv(T_WC)
-    #     tem_poses.append(T_WC)
-
     # for line in odometry_matrix:
     #     # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
     #     ex_m = np.array([line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8], line[9], line[10], line[11], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
     #     poses.append(ex_m)
-    for line in extrinsiccsv:
-        # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
-        ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
-        extrinsics.append(ex_m)
+    # for line in extrinsiccsv:
+    #     # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
+    #     ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
+    #     extrinsics.append(ex_m)
     
     for line in intrinsicscsv:
         in_m = np.array([line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8]]).reshape((3,3))
         intrinsics.append(in_m)
 
-    depth_dir = os.path.join(flags.path, 'depth_org')
+    depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     # depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
     depth_frames = [f for f in depth_frames if '.csv' in f or '.png' in f]
@@ -99,7 +87,7 @@ def read_data(flags):
     print("len: ", len(poses), len(depth_frames), len(rgb_frames), len(extrinsics), len(intrinsics))
     # print("intrinsic: ", intrinsics)
     # print("Pose\n", poses[5])
-    # print("extrinsics: \n", extrinsics[5])
+    # print("extrinsics: \n", extrinsics[2])
     # print("temp-poses: ", tem_poses[50])
     return { 'poses': poses, 'depth_frames': depth_frames, 'rgb_frames': rgb_frames, 'extrinsics': extrinsics, 'intrinsics': intrinsics }
 
@@ -107,19 +95,19 @@ def load_depth(path, confidence=None, filter_level=0):
     if path[-4:] == '.npy':
         depth_mm = np.load(path)
     elif path[-4:] == '.png':
-        depth_mm = np.array(Image.open(path))
+        depth_mm = np.array(Image.open(path))/13
     depth_m = depth_mm.astype(np.float32)/1000
     if confidence is not None:
         depth_m[confidence < filter_level] = 0.0
-    print("filter: ", filter_level, "\n", depth_m.shape)
+    # print("filter: ", filter_level, "\n", depth_m)
     return o3d.geometry.Image(depth_m)
 
-def load_csv_depth(path, confidence=None, filter_level=0):  
+def load_csv_depth(path, confidence=None, filter_level=0):
     depth_mm = np.loadtxt(os.path.join(path), delimiter=',',skiprows=0)
     depth_m = depth_mm.astype(np.float32)/1000
     if confidence is not None:
         depth_m[confidence < filter_level] = 0.0
-    print("filter: ", filter_level, "\n", depth_m.shape)
+    # print("filter: ", filter_level, "\n", depth_m)
     return o3d.geometry.Image(depth_m)
     
 
@@ -128,21 +116,13 @@ def load_rgb(path):
     rgb = Image.fromarray(rgb_mm)
     rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
     # rgb_m = rgb_mm.resize(DEPTH_WIDTH, DEPTH_HEIGHT)
-    print("rgb_mm: ", type(rgb_mm), rgb_mm.shape)
+    # print("rgb_mm: ", type(rgb_mm), rgb_mm.shape)
     # rgb_m = rgb_mm.astype(np.float32) / 1000.0
     rgb = np.array(rgb)
     return rgb
 
 def load_confidence(path):
     return np.array(Image.open(path))
-
-# def get_intrinsics(intrinsics):
-#     """
-#     Scales the intrinsics matrix to be of the appropriate scale for the depth maps.
-#     """
-#     intrinsics_scaled = _resize_camera_matrix(intrinsics, DEPTH_WIDTH / 1920, DEPTH_HEIGHT / 1440)
-#     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
-#         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
 
 def get_intrinsics(intrinsics):
     """
@@ -151,6 +131,13 @@ def get_intrinsics(intrinsics):
     intrinsics_scaled = _resize_camera_matrix(intrinsics, DEPTH_WIDTH / 1920, DEPTH_HEIGHT / 1440)
     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
+# def get_intrinsics(intrinsics):
+#     """
+#     Scales the intrinsics matrix to be of the appropriate scale for the depth maps.
+#     """
+#     intrinsics_scaled = _resize_camera_matrix(intrinsics, 1, 1)
+#     return o3d.camera.PinholeCameraIntrinsic(width=DEPTH_WIDTH, height=DEPTH_HEIGHT, fx=intrinsics_scaled[0, 0],
+#         fy=intrinsics_scaled[1, 1], cx=intrinsics_scaled[0, 2], cy=intrinsics_scaled[1, 2])
 
 def trajectory(flags, data):
     """
@@ -197,33 +184,30 @@ def point_clouds(flags, data):
     # intrinsics = get_intrinsics(data['intrinsics'])
     pc = o3d.geometry.PointCloud()
     meshes = []
-    # fi = open("/Users/minhnd/Documents/test/temp/depthcloud/sam3d/odometry.csv", "w+")
     for i, (T_WC) in enumerate(zip(data['extrinsics'])):
-        if i < 10000:
-            T_CW = np.linalg.inv(T_WC[0])
-            # od = Rotation.from_matrix(T_CW[:3, :3]).as_quat()
-            # x = str(T_CW[0][3]) + "," + str(T_CW[1][3]) + "," + str(T_CW[2][3]) + "," + ','.join([str(x) for x in od]) +  "\n"
-            # fi.write(x)
-            # print(data['extrinsics'][i])
-            # print("T_CW: ", i, "\n", data['extrinsics'][i], "\n", T_WC, "\n", T_CW[0])
-            if i % flags.every != 0:
-                continue
-            # print(f"Point cloud {i}", end="\r")
-            # T_CW = np.linalg.inv(T_WC)
-            
-            confidence = load_confidence(os.path.join(flags.path, 'confidence', f'conf_{(i ):06}.png'))
-            depth_path = data['depth_frames'][i]
-            rgb_path = data['rgb_frames'][i]
-            print("Flags: ", flags)
-            depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
-            # depth = load_csv_depth(depth_path, confidence, filter_level=flags.confidence)
-            rgb = load_rgb(rgb_path)
-            # return
-            # print("Geometry type depth : ", depth)
-            rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
-                o3d.geometry.Image(rgb), depth,
-                depth_scale=1, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-            pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, get_intrinsics(data['intrinsics'][i]), extrinsic = T_CW)
+        # if i > 27:
+        
+        T_CW = np.linalg.inv(T_WC[0])
+        # print(data['extrinsics'][i])
+        # print("T_CW: ", i, "\n", data['extrinsics'][i], "\n", T_WC, "\n", T_CW[0])
+        if i % flags.every != 0:
+            continue
+        # print(f"Point cloud {i}", end="\r")
+        # T_CW = np.linalg.inv(T_WC)
+        
+        confidence = load_confidence(os.path.join(flags.path, 'confidence', f'conf_{(i+12):06}.png'))
+        depth_path = data['depth_frames'][i]
+        rgb_path = data['rgb_frames'][i]
+        print("Flags: ", flags)
+        depth = load_depth(depth_path, confidence, filter_level=flags.confidence)
+        # depth = load_csv_depth(depth_path, confidence, filter_level=flags.confidence)
+        rgb = load_rgb(rgb_path)
+        # return
+        rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
+            o3d.geometry.Image(rgb), depth,
+            depth_scale=1000, depth_trunc=1000, convert_rgb_to_intensity=False)
+        # print("extrinsic: ", data['extrinsics'][i])
+        pc += o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, get_intrinsics(data['intrinsics'][i]), extrinsic=T_CW)
     return [pc]
 
 def integrate(flags, data):
@@ -239,31 +223,21 @@ def integrate(flags, data):
             sdf_trunc=0.05,
             color_type=o3d.pipelines.integration.TSDFVolumeColorType.RGB8)
 
-    intrinsics = get_intrinsics(data['intrinsics1'])
-
-    # rgb_path = os.path.join(flags.path, 'rgb.mp4')
-    # video = skvideo.io.vreader(rgb_path)
-    for i, (T_WC) in enumerate(zip(data['poses'])):
-        print(f"Integrating frame {i:06}", end='\r')
-        # depth_path = data['depth_frames'][i]
-        # depth = load_depth(depth_path)
+    # intrinsics = get_intrinsics(data['intrinsics'])
+    for i, (T_WC) in enumerate(zip(data['extrinsics'])):
+        # print(f"Integrating frame {i:06}", end='\r')
+        depth_path = data['depth_frames'][i]
+        rgb_path = data['rgb_frames'][i]
+        depth = load_depth(depth_path)
         # rgb = Image.fromarray(rgb)
         # rgb = rgb.resize((DEPTH_WIDTH, DEPTH_HEIGHT))
         # rgb = np.array(rgb)
-        depth_path = data['depth_frames'][i]
-        
-        # print("rgb: ", type(rgb), rgb.shape, rgb[0][0], np.amax(rgb))
-        
-
-        rgb_path = data['rgb_frames'][i]
-        
-        depth = load_depth(depth_path)
         rgb = load_rgb(rgb_path)
         rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
             o3d.geometry.Image(rgb), depth,
             depth_scale=1.0, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
 
-        volume.integrate(rgbd, intrinsics, np.linalg.inv(T_WC[0]))
+        volume.integrate(rgbd, get_intrinsics(data['intrinsics'][i]), np.linalg.inv(T_WC))
     mesh = volume.extract_triangle_mesh()
     mesh.compute_vertex_normals()
     return mesh
