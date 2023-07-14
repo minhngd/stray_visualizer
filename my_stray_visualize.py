@@ -46,7 +46,7 @@ def read_data(flags):
     # odometry = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
     # odometry_optimized = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=',', skiprows=0)
     # odometry_matrix = np.loadtxt(os.path.join(flags.path, 'odometry.csv'), delimiter=' ', skiprows=0)
-    extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsics.csv'), delimiter=' ',skiprows=0)
+    extrinsiccsv = np.loadtxt(os.path.join(flags.path, 'extrinsics.csv'), delimiter=',',skiprows=0)
     intrinsicscsv = np.loadtxt(os.path.join(flags.path, "intrinsics.csv"), delimiter=',', skiprows=0)
     poses = []
     tem_poses = []
@@ -88,7 +88,7 @@ def read_data(flags):
         in_m = np.array([line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8]]).reshape((3,3))
         intrinsics.append(in_m)
 
-    depth_dir = os.path.join(flags.path, 'depth_org')
+    depth_dir = os.path.join(flags.path, 'depth_a')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     # depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
     depth_frames = [f for f in depth_frames if '.csv' in f or '.png' in f]

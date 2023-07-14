@@ -69,7 +69,7 @@ def read_data(flags):
         # print("Poses==",T_WC.shape)
         
     # print("Poses========: \n", poses[0])
-    depth_dir = os.path.join(flags.path, 'depth_org')
+    depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
 
