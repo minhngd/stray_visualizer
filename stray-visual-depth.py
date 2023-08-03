@@ -58,10 +58,15 @@ def read_data(flags):
     poses = []
     tem_poses = []
     extrinsics = []
+    rotation_matrix = np.array([[1,  0,  0,  0],
+                            [0, -1,  0,  0],
+                            [0,  0, -1,  0],
+                            [0,  0,  0,  1]])
     
     for line in extrinsiccsv:
         # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
         ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
+        # ex_m = ex_m.dot(rotation_matrix)
         extrinsics.append(ex_m)
 
     depth_dir = os.path.join(flags.path, 'depth')
@@ -124,7 +129,7 @@ def trajectory(flags, data):
     line_sets = []
     previous_pose = None
     for i, T_WC in enumerate(data['extrinsics']):
-        if i < 2:
+        if i < 30:
             if previous_pose is not None:
                 points = o3d.utility.Vector3dVector([previous_pose[:3, 3], T_WC[:3, 3]])
                 lines = o3d.utility.Vector2iVector([[0, 1]])
@@ -161,11 +166,11 @@ def point_clouds(flags, data):
     pc = o3d.geometry.PointCloud()
     meshes = []
     for i, (T_WC) in enumerate(zip(data['extrinsics'])):
-        if i < 2:
+        if i > 10 and i < 15:
             T_CW = np.linalg.inv(T_WC[0])
             if i % flags.every != 0:
                 continue
-            
+            print("TWC: \n", T_WC[0])
             # confidence = load_confidence(os.path.join(flags.path, 'confidence', f'conf_{(i ):06}.png'))
             depth_path = data['depth_frames'][i]
             rgb_path = data['rgb_frames'][i]
@@ -176,7 +181,7 @@ def point_clouds(flags, data):
             rgbd = o3d.geometry.RGBDImage.create_from_color_and_depth(
                 o3d.geometry.Image(rgb), depth,
                 depth_scale=1, depth_trunc=MAX_DEPTH, convert_rgb_to_intensity=False)
-            pc = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_CW)
+            pc = o3d.geometry.PointCloud.create_from_rgbd_image(rgbd, intrinsics, extrinsic=T_WC[0])
             pcs.append(pc)
     return pcs
 
