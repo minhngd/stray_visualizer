@@ -8,9 +8,42 @@ from PIL import Image
 def read_depth(path):
     with open(path) as file:
         depth_mm = np.loadtxt(os.path.join(path), delimiter=',',skiprows=0)
+        print("Depth data: ", np.rint(depth_mm).astype(np.uint16))
         img = Image.fromarray(np.rint(depth_mm).astype(np.uint16))
         img_1 = img.resize((1920, 1440))
     return img, img_1
+
+def load_csv_depth(path, confidence=None, filter_level=0):  
+    depth_mm = np.loadtxt(os.path.join(path), delimiter=',',skiprows=0)
+    depth_m = depth_mm.astype(np.float32)/1000
+    if confidence is not None:
+        depth_m[confidence < filter_level] = 0.0
+    print("filter: ", filter_level, "\n", depth_m.shape)
+    return o3d.geometry.Image(depth_m)
+
+def check_depth_image(path):
+    depth_mm = np.array(Image.open(path))
+    
+    print("im_array: " , depth_mm)
+
+    # Normalize the pixel values to the range [0, 1]
+    # im_arr = im_arr.astype(np.float32) / 255.0
+
+def load_cam_file(camdir):
+    cam_files = [os.path.join(camdir, p) for p in sorted(os.listdir(camdir))]
+    # print("depth_frame",depth_frames)
+    cam_files = [f for f in cam_files if '.cam' in f]
+    for i in cam_files:
+        content = ""
+        with open(i, "r+") as file:
+            content  = file.readline()
+            content += "0.3 0.1 0.1 0.5 0.5 0.5"
+            # file.write(content)
+            file.close()
+            print(content , "\n")
+        with open(i, "w") as file:
+            file.write(content)
+            file.close()
 
 def write_extrinsic(path, dst_dir):
     with open(path) as file:
@@ -25,7 +58,6 @@ def write_extrinsic(path, dst_dir):
             f.write(cam_content)
             i += 1
     
-
 def load_depth_image(path):
     depth_dir = os.path.join(path, 'depth')
     depth_org = os.path.join(path, 'depth_org')
@@ -39,16 +71,20 @@ def load_depth_image(path):
         os.mkdir(depth_scale)
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
     # print("depth_frame",depth_frames)
-    depth_frames = [f for f in depth_frames if '.npy' in f or '.csv' in f]
+    depth_frames = [f for f in depth_frames if '.npy' in f or '.csv' in f or ".png" in f]
     for i,f in enumerate(depth_frames):
-        print(i)
-        img, img_rescale = read_depth(f)
-        img.save(os.path.join(depth_org , f'{(i):06}.png'))    
-        img_rescale.save(os.path.join(depth_scale , f'{(i):06}.png'))   
+        if i < 1:
+            print(i)
+            # img, img_rescale = read_depth(f)
+            check_depth_image(f)
+            # img.save(os.path.join(depth_org , f'{(i):06}.png'))    
+            # img_rescale.save(os.path.join(depth_scale , f'{(i):06}.png'))   
 
-src_dir = "/Users/minhnd/Documents/test/temp/lidar/sam9/"
+# src_dir = "/home/vmo/Documents/3dreconstruct/data/sam2/sam2/"
+src_dir = "/home/vmo/Documents/3dreconstruct/data/stray1/"
 dst_dir = "/Users/minhnd/Documents/test/temp/lidar/sam9/"
 
-load_depth_image(src_dir)
+# load_depth_image(src_dir)
 # write_extrinsic(src_dir + "/extrinsics.csv", dst_dir)
+load_cam_file("/home/vmo/Documents/3dreconstruct/data/stray1/cam_dir/")
 
