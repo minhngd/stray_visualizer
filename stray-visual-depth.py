@@ -129,7 +129,7 @@ def trajectory(flags, data):
     line_sets = []
     previous_pose = None
     for i, T_WC in enumerate(data['extrinsics']):
-        if i < 30:
+        if i < 8:
             if previous_pose is not None:
                 points = o3d.utility.Vector3dVector([previous_pose[:3, 3], T_WC[:3, 3]])
                 lines = o3d.utility.Vector2iVector([[0, 1]])
@@ -149,7 +149,7 @@ def show_frames(flags, data):
     """
     frames = [o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.25, np.zeros(3))]
     for i, T_WC in enumerate(data['extrinsics']):
-        if i < 1:
+        if i < 8:
             mesh = o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.1, np.zeros(3))
             frames.append(mesh.transform(T_WC))
     return frames
@@ -166,7 +166,7 @@ def point_clouds(flags, data):
     pc = o3d.geometry.PointCloud()
     meshes = []
     for i, (T_WC) in enumerate(zip(data['extrinsics'])):
-        if i > 10 and i < 15:
+        if i < 8 :
             T_CW = np.linalg.inv(T_WC[0])
             if i % flags.every != 0:
                 continue

@@ -49,6 +49,10 @@ def read_data(flags):
     poses = []
     extrinsics = []
     intrinsics = []
+    rotation_matrix = np.array([[0,  -1,  0,  0],
+                            [1, 0,  0,  0],
+                            [0,  0, 1,  0],
+                            [0,  0,  0,  1]])
 
     for line in odometry:
         # timestamp, frame, x, y, z, qx, qy, qz, qw
@@ -63,6 +67,7 @@ def read_data(flags):
     for line in extrinsiccsv:
         # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
         ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
+        # ex_m = rotation_matrix.dot(ex_m)
         extrinsics.append(ex_m)
     
     for line in intrinsicscsv:
@@ -125,7 +130,7 @@ def trajectory(flags, data):
     """
     line_sets = []
     previous_pose = None
-    for i, T_WC in enumerate(data['poses']):
+    for i, T_WC in enumerate(data['extrinsics']):
         if previous_pose is not None:
             points = o3d.utility.Vector3dVector([previous_pose[:3, 3], T_WC[:3, 3]])
             lines = o3d.utility.Vector2iVector([[0, 1]])
@@ -144,7 +149,7 @@ def show_frames(flags, data):
     returns: [open3d.geometry.TriangleMesh]
     """
     frames = [o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.25, np.zeros(3))]
-    for i, T_WC in enumerate(data['poses']):
+    for i, T_WC in enumerate(data['extrinsics']):
         if not i % flags.every == 0:
             continue
         # print(f"Frame {i}", end="\r")
@@ -164,7 +169,7 @@ def point_clouds(flags, data):
     pc = o3d.geometry.PointCloud()
     meshes = []
     # fi = open("/Users/minhnd/Documents/test/temp/depthcloud/sam3d/odometry.csv", "w+")
-    for i, (T_WC) in enumerate(zip(data['poses'])):
+    for i, (T_WC) in enumerate(zip(data['extrinsics'])):
         if i < 10000:
             T_CW = np.linalg.inv(T_WC[0])
             # od = Rotation.from_matrix(T_CW[:3, :3]).as_quat()
