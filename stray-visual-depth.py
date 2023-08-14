@@ -65,12 +65,11 @@ def read_data(flags):
     
     for line in extrinsiccsv:
         ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
-        ex_m = ex_m.dot(rotation_matrix)
+        # ex_m = ex_m.dot(rotation_matrix)
         extrinsics.append(ex_m)
 
     depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
-    # depth_frames = [f for f in depth_frames if '.npy' in f or '.png' in f]
     depth_frames = [f for f in depth_frames if '.csv' in f or '.png' in f]
 
     rgb_dir = os.path.join(flags.path, 'color')

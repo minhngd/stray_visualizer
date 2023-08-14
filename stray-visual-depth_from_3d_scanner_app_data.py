@@ -47,20 +47,39 @@ def read_data(flags):
     # intrinsicscsv = np.loadtxt(os.path.join(flags.path, "intrinsics.csv"), delimiter=',', skiprows=0)
     poses = []
     extrinsics = []
-    rotation_matrix = np.array([[0,  -1,  0,  0],
-                            [1, 0,  0,  0],
-                            [0,  0, 1,  0],
-                            [0,  0,  0,  1]])
+    
+    # Step 1: Rotation around y -90 degrees
+    rotation_y = np.array([[0, 0, -1, 0],
+                       [0, 1, 0, 0],
+                       [1, 0, 0, 0],
+                       [0, 0, 0, 1]])
 
+
+    # Step 2: Rotation around z -90 degrees
+    rotation_z = np.array([[0, 1, 0, 0],
+                       [-1, 0, 0, 0],
+                       [0, 0, 1, 0],
+                       [0, 0, 0, 1]])
+
+    
+
+    # Step 3: Revert x into -x
+    revert_x = np.array([[-1, 0, 0, 0],
+                        [0, 1, 0, 0],
+                        [0, 0, 1, 0],
+                        [0, 0, 0, 1]])
+    i = 0
     for line in extrinsiccsv:
-        # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
         ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
-        # ex_m = rotation_matrix.dot(ex_m)
+        ex_m = ex_m.dot(rotation_y)
+        ex_m = ex_m.dot(rotation_z)
+        ex_m = ex_m.dot(revert_x)
+        ext2cam = str(ex_m[0][3]) + " " + str(ex_m[1][3]) + " " + str(ex_m[2][3]) + " " + str(ex_m[0][0]) + " " + str(ex_m[0][1]) + " " + str(ex_m[0][2]) + " " + str(ex_m[1][0]) + " " + str(ex_m[1][1]) + " " + str(ex_m[1][2]) + " " + str(ex_m[2][0]) + " " + str(ex_m[2][1]) + " " + str(ex_m[2][2]) + "\n" + "0.76 0.0 0.0 1.0 0.5 0.5"
+        with open(f"/home/vmo/Documents/3dreconstruct/mvs-texturing/data/wall_du18/cam/color_{i:06}.cam", "w") as f:
+            f.write(ext2cam)
+        i += 1
         extrinsics.append(ex_m)
     
-    # for line in intrinsicscsv:
-    #     in_m = np.array([line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7], line[8]]).reshape((3,3))
-    #     intrinsics.append(in_m)
 
     depth_dir = os.path.join(flags.path, 'depth')
     depth_frames = [os.path.join(depth_dir, p) for p in sorted(os.listdir(depth_dir))]
@@ -142,7 +161,7 @@ def show_frames(flags, data):
         if not i % flags.every == 0:
             continue
         # print(f"Frame {i}", end="\r")
-        if i < 4:
+        if i < 40:
             mesh = o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.1, np.zeros(3))
             frames.append(mesh.transform(T_WC))
     return frames
@@ -160,7 +179,7 @@ def point_clouds(flags, data):
     meshes = []
     # fi = open("/Users/minhnd/Documents/test/temp/depthcloud/sam3d/odometry.csv", "w+")
     for i, (T_WC) in enumerate(zip(data['extrinsics'])):
-        if i < 4:
+        if i < 40:
             T_CW = np.linalg.inv(T_WC[0])
             # od = Rotation.from_matrix(T_CW[:3, :3]).as_quat()
             # x = str(T_CW[0][3]) + "," + str(T_CW[1][3]) + "," + str(T_CW[2][3]) + "," + ','.join([str(x) for x in od]) +  "\n"
