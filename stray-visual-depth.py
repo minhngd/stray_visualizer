@@ -64,9 +64,8 @@ def read_data(flags):
                             [0,  0,  0,  1]])
     
     for line in extrinsiccsv:
-        # ex_m = np.array([line[3], line[6], line[9], line[0], line[4], line[7], line[10], line[1], line[5], line[8], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
         ex_m = np.array([line[3], line[4], line[5], line[0], line[6], line[7], line[8], line[1], line[9], line[10], line[11], line[2], 0.0, 0.0, 0.0, 1.0]).reshape((4,4))
-        # ex_m = ex_m.dot(rotation_matrix)
+        ex_m = ex_m.dot(rotation_matrix)
         extrinsics.append(ex_m)
 
     depth_dir = os.path.join(flags.path, 'depth')
@@ -129,7 +128,7 @@ def trajectory(flags, data):
     line_sets = []
     previous_pose = None
     for i, T_WC in enumerate(data['extrinsics']):
-        if i < 8:
+        if i < 100:
             if previous_pose is not None:
                 points = o3d.utility.Vector3dVector([previous_pose[:3, 3], T_WC[:3, 3]])
                 lines = o3d.utility.Vector2iVector([[0, 1]])
@@ -149,7 +148,7 @@ def show_frames(flags, data):
     """
     frames = [o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.25, np.zeros(3))]
     for i, T_WC in enumerate(data['extrinsics']):
-        if i < 8:
+        if i < 100:
             mesh = o3d.geometry.TriangleMesh.create_coordinate_frame().scale(0.1, np.zeros(3))
             frames.append(mesh.transform(T_WC))
     return frames
